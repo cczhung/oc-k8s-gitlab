@@ -1,0 +1,370 @@
+kind: DeploymentConfig
+apiVersion: v1
+metadata:
+  name: mysql
+spec:
+  selector:
+    name: mysql
+  template: 
+    metadata:
+      labels:
+        name: mysql
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: '{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"In","values":["node2"]}]}]}}}'
+    spec:
+      containers:
+      - name: mysql
+        image: registry.saas.hand-china.com/tools/mysql:5.7.17
+        ports:
+        - containerPort: 3306
+          protocol: TCP
+        env:
+        - name: MYSQL_USER
+          value: gitlab
+        - name: MYSQL_PASSWORD
+          value: password
+        - name: MYSQL_DATABASE
+          value: gitlabhq_production
+        - name: MYSQL_ROOT_PASSWORD
+          value: "12345"
+        volumeMounts:
+        - name: mysql-home
+          mountPath: /var/lib/mysql
+        - name: mysql-config
+          mountPath: /etc/mysql/conf.d
+      volumes:
+         - name: mysql-home
+           hostPath:
+            path: /srv/docker/gitlab/mysql
+         - name: mysql-config
+           hostPath:
+            path: /srv/docker/mysql/config
+  replicas: 1
+  triggers:
+  - type: ConfigChange 
+  strategy: 
+    type: Rolling
+  paused: false 
+  revisionHistoryLimit: 2
+  minReadySeconds: 0
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: mysql
+  name: mysql
+spec:
+  ports:
+  - port: 3306
+    targetPort: 3306
+    protocol: TCP
+  externalIPs:
+  - 192.168.56.122
+  selector:
+    name: mysql
+
+
+---
+
+kind: DeploymentConfig
+apiVersion: v1
+metadata:
+  name: redis
+spec:
+  selector:
+    name: redis
+  template: 
+    metadata:
+      labels:
+        name: redis
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: '{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"In","values":["node2"]}]}]}}}'
+    spec:
+      containers:
+      - name: redis
+        image: registry.saas.hand-china.com/tools/redis:3.2.6
+        ports:
+        - containerPort: 6379
+          protocol: TCP
+        volumeMounts:
+        - name: redis-home
+          mountPath: /var/lib/redis
+      volumes:
+         - name: redis-home
+           hostPath:
+            path: /srv/docker/gitlab/redis
+  replicas: 1
+  triggers:
+  - type: ConfigChange 
+  strategy: 
+    type: Rolling
+  paused: false 
+  revisionHistoryLimit: 2
+  minReadySeconds: 0
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: redis
+  name: redis
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+  externalIPs:
+  - 192.168.56.122
+  selector:
+    name: redis
+
+---
+
+
+kind: DeploymentConfig
+apiVersion: v1
+metadata:
+  name: gitlab-server
+spec:
+  selector:
+    name: gitlab-server
+  template: 
+    metadata:
+      labels:
+        name: gitlab-server
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: '{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"kubernetes.io/hostname","operator":"In","values":["node2"]}]}]}}}'
+    spec:
+      containers:
+      - name: gitlab-server
+        image: registry.saas.hand-china.com/tools/gitlab:9.0.2
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        env:
+        - name: DEBUG
+          value: "false"
+        - name: DB_ADAPTER
+          value: mysql2
+        - name: DB_HOST
+          value: mysql
+        - name: DB_PORT
+          value: "3306"
+        - name: DB_USER
+          value: gitlab
+        - name: DB_PASS
+          value: password
+        - name: DB_NAME
+          value: gitlabhq_production
+        - name: REDIS_HOST
+          value: redis
+        - name: REDIS_PORT
+          value: "6379"
+        - name: TZ
+          value: "Asia/Kolkata"
+        - name: GITLAB_TIMEZONE
+          value: Kolkata
+        - name: GITLAB_HTTPS
+          value: "false"
+        - name: SSL_SELF_SIGNED
+          value: "false"
+        - name: GITLAB_HOST
+          value: openshift-cluster.example.com
+        - name: GITLAB_PORT
+          value: "80"
+        - name: GITLAB_SSH_PORT
+          value: "10022"
+        - name: GITLAB_RELATIVE_URL_ROOT
+          value:
+        - name: GITLAB_SECRETS_DB_KEY_BASE
+          value: long-and-random-alphanumeric-string
+        - name: GITLAB_SECRETS_SECRET_KEY_BASE
+          value: long-and-random-alphanumeric-string
+        - name: GITLAB_SECRETS_OTP_KEY_BASE
+          value: long-and-random-alphanumeric-string
+        - name: GITLAB_ROOT_PASSWORD
+          value: 
+        - name: GITLAB_ROOT_EMAIL
+          value: 
+        - name: GITLAB_NOTIFY_ON_BROKEN_BUILDS
+          value: "true"
+        - name: GITLAB_NOTIFY_PUSHER
+          value: "false"
+        - name: GITLAB_EMAIL
+          value: hrppms@sys.hand-china.com
+        - name: GITLAB_EMAIL_REPLY_TO
+          value: noreply@example.com
+        - name: GITLAB_INCOMING_EMAIL_ADDRESS
+          value: reply@example.com
+        - name: GITLAB_BACKUP_SCHEDULE
+          value: disable
+        - name: GITLAB_BACKUP_TIME
+          value: 
+        - name: SMTP_ENABLED
+          value: "false"
+        - name: SMTP_DOMAIN
+          value: mail.hand-china.com
+        - name: SMTP_HOST
+          value: mail.hand-china.com
+        - name: SMTP_PORT
+          value: "25"
+        - name: SMTP_USER
+          value: hrppms@sys.hand-china.com
+        - name: SMTP_PASS
+          value: handhand
+        - name: SMTP_STARTTLS
+          value: "true"
+        - name: SMTP_AUTHENTICATION
+          value: login
+        - name: IMAP_ENABLED
+          value: "false"
+        - name: OAUTH_ENABLED
+          value: "false"
+        - name: OAUTH_AUTO_SIGN_IN_WITH_PROVIDER
+          value: "cas3"
+        - name: OAUTH_ALLOW_SSO
+          value: "cas3"
+        - name: OAUTH_BLOCK_AUTO_CREATED_USERS
+          value: "false"
+        - name: OAUTH_AUTO_LINK_LDAP_USER
+          value: "false"
+        - name: OAUTH_AUTO_LINK_SAML_USER
+          value: "false"
+        - name: OAUTH_EXTERNAL_PROVIDERS
+          value: 
+        - name: OAUTH_CAS3_LABEL
+          value: "cas3"
+        - name: OAUTH_CAS3_SERVER
+          value: https://login.hand-china.com
+        - name: OAUTH_CAS3_DISABLE_SSL_VERIFICATION
+          value: "false"
+        - name: OAUTH_CAS3_LOGIN_URL
+          value: /sso/login
+        - name: OAUTH_CAS3_VALIDATE_URL
+          value: "/sso/p3/serviceValidate"
+        - name: OAUTH_CAS3_LOGOUT_URL
+          value: /sso/logout
+        - name: OAUTH_GOOGLE_API_KEY
+          value: 
+        - name: OAUTH_GOOGLE_APP_SECRET
+          value: 
+        - name: OAUTH_GOOGLE_RESTRICT_DOMAIN
+          value: 
+        - name: OAUTH_FACEBOOK_API_KEY
+          value: 
+        - name: OAUTH_FACEBOOK_APP_SECRET
+          value: 
+        - name: OAUTH_TWITTER_API_KEY
+          value: 
+        - name: OAUTH_TWITTER_APP_SECRET
+          value: 
+        - name: OAUTH_GITHUB_API_KEY
+          value: 
+        - name: OAUTH_GITHUB_APP_SECRET
+          value: 
+        - name: OAUTH_GITHUB_URL
+          value: 
+        - name: OAUTH_GITHUB_VERIFY_SSL
+          value: 
+        - name: OAUTH_GITLAB_API_KEY
+          value: 
+        - name: OAUTH_GITLAB_APP_SECRET
+          value: 
+        - name: OAUTH_BITBUCKET_API_KEY
+          value: 
+        - name: OAUTH_BITBUCKET_APP_SECRET
+          value: 
+        - name: OAUTH_SAML_ASSERTION_CONSUMER_SERVICE_URL
+          value: 
+        - name: OAUTH_SAML_IDP_CERT_FINGERPRINT
+          value: 
+        - name: OAUTH_SAML_IDP_SSO_TARGET_URL
+          value: 
+        - name: OAUTH_SAML_ISSUER
+          value: 
+        - name: OAUTH_SAML_LABEL
+          value: Our SAML Provider
+        - name: OAUTH_SAML_NAME_IDENTIFIER_FORMAT
+          value: "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+        - name: OAUTH_SAML_GROUPS_ATTRIBUTE
+          value: 
+        - name: OAUTH_SAML_EXTERNAL_GROUPS
+          value: 
+        - name: OAUTH_SAML_ATTRIBUTE_STATEMENTS_EMAIL
+          value: 
+        - name: OAUTH_SAML_ATTRIBUTE_STATEMENTS_NAME
+          value: 
+        - name: OAUTH_SAML_ATTRIBUTE_STATEMENTS_FIRST_NAME
+          value: 
+        - name: OAUTH_SAML_ATTRIBUTE_STATEMENTS_LAST_NAME
+          value: 
+        - name: OAUTH_CROWD_SERVER_URL
+          value: 
+        - name: OAUTH_CROWD_APP_NAME
+          value: 
+        - name: OAUTH_CROWD_APP_PASSWORD
+          value: 
+        - name: OAUTH_AUTH0_CLIENT_ID
+          value: 
+        - name: OAUTH_AUTH0_CLIENT_SECRET
+          value: 
+        - name: OAUTH_AUTH0_DOMAIN
+          value: 
+        - name: OAUTH_AZURE_API_KEY
+          value: 
+        - name: OAUTH_AZURE_API_SECRET
+          value: 
+        - name: OAUTH_AZURE_TENANT_ID
+          value: 
+        - name: GITLAB_REGISTRY_ENABLED
+          value: "true"
+        - name: GITLAB_REGISTRY_HOST
+          value: gitlab-registry.example.com
+        - name: GITLAB_REGISTRY_API_URL
+          value: http://gitlab-registry.example.com
+        - name: GITLAB_REGISTRY_KEY_PATH
+          value: 
+        - name: GITLAB_REGISTRY_ISSUER
+          value: gitlab-issuer
+        - name: SSL_REGISTRY_KEY_PATH
+          value: 
+        - name: SSL_REGISTRY_CERT_PATH
+          value: 
+        volumeMounts:
+        - name: gitlab-home
+          mountPath: /home/git/data
+      volumes:
+         - name: gitlab-home
+           hostPath:
+            path: /srv/docker/gitlab/gitlab
+  replicas: 1
+  triggers:
+  - type: ConfigChange 
+  strategy: 
+    type: Rolling
+  paused: false 
+  revisionHistoryLimit: 2
+  minReadySeconds: 0
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: gitlab-server
+  name: gitlab-server
+spec:
+  ports:
+  - port: 8080
+    targetPort: 80
+    protocol: TCP 
+  externalIPs:
+  - 192.168.56.122
+  selector:
+    name: gitlab-server
